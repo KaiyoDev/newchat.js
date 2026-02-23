@@ -1,0 +1,26 @@
+{
+  "name": "newchat.js",
+  "version": "1.0.0",
+  "description": "Unofficial NewChat API wrapper for Node.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KaiyoDev/newchat.js.git"
+  },
+  "keywords": ["newchat", "api", "chat", "wrapper", "kaiyodang", "nodejs"],
+  "author": "KaiyoDang",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/KaiyoDev/newchat.js/issues"
+  },
+  "homepage": "https://github.com/KaiyoDev/newchat.js#readme",
+  "dependencies": {
+    "axios": "^1.13.5",
+    "dotenv": "^17.3.1",
+    "ws": "^8.19.0"
+  }
+}
