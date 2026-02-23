@@ -2,8 +2,6 @@
 
 'use strict';
 
-const wsClient = require('../wsClient');
-
 /**
  * Factory function trả về hàm markAsRead.
  * @param {string} token - Bearer token
@@ -12,25 +10,27 @@ const wsClient = require('../wsClient');
  */
 module.exports = function (token, httpClient) {
   /**
-   * Đánh dấu đã đọc tin nhắn trong channel qua WebSocket.
-   * REST endpoints trả 404 nên dùng WS emit.
-   * TODO: verify tên event chính xác từ F12 Network → WS Messages tab
-   *       (khi click vào một conversation, ghi lại event name + payload server nhận)
+   * Đánh dấu đã đọc toàn bộ tin nhắn trong channel.
+   * Endpoint: HEAD /channels/{channelId}/seen
    *
    * @param {string} channelId - ID của channel/thread
-   * @param {string} [lastMessageId] - ID của tin nhắn cuối đã đọc
+   * @returns {Promise<true>}
    */
-  return function markAsRead(channelId, lastMessageId) {
+  return async function markAsRead(channelId) {
     if (!channelId) throw new Error('markAsRead: channelId là bắt buộc');
 
-    const payload = { channelId };
-    if (lastMessageId) payload.lastMessageId = lastMessageId;
-
     try {
-      // TODO: verify event name ("read" | "mark_read" | "messages_read") từ F12
-      wsClient.emitEvent('read', payload);
-      console.log('[newchat.js] markAsRead:', channelId);
+      const response = await httpClient.head(`/channels/${channelId}/seen`);
+
+      if (response.status === 200) {
+        return true;
+      }
+
+      throw new Error(`markAsRead: status không mong đợi ${response.status}`);
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        throw new Error('Session expired, please re-login');
+      }
       console.error('[newchat.js ERROR] markAsRead thất bại:', err.message);
       throw err;
     }

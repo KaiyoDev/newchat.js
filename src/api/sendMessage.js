@@ -2,7 +2,8 @@
 
 'use strict';
 
-const { randomUUID } = require('crypto');
+const FormData = require('form-data');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Factory function trả về hàm sendMessage.
@@ -12,34 +13,26 @@ const { randomUUID } = require('crypto');
  */
 module.exports = function (token, httpClient) {
   /**
-   * Gửi tin nhắn đến một channel.
-   * Endpoint: POST /channels/{channelId}/messages
-   * Body: multipart/form-data — { body: "<p>...</p>", signId: UUID }
+   * Gửi tin nhắn văn bản đến channel.
+   * Endpoint: POST /channels/{channelId}/messages (multipart/form-data)
    *
-   * @param {string} channelId - ID của channel (lấy từ getThreadList)
-   * @param {string} message - Nội dung tin nhắn (plain text, tự động wrap thành HTML)
-   * @returns {Promise<Object>} Response data từ server
+   * @param {string} channelId - ID của channel/thread
+   * @param {string} content - Nội dung plain text (tự động wrap thành HTML)
+   * @returns {Promise<Object>} response data từ server
    */
-  return async function sendMessage(channelId, message) {
+  return async function sendMessage(channelId, content) {
     if (!channelId) throw new Error('sendMessage: channelId là bắt buộc');
-    if (!message) throw new Error('sendMessage: message là bắt buộc');
+    if (!content)   throw new Error('sendMessage: content là bắt buộc');
 
-    const signId = randomUUID();
-    const htmlBody = `<p>${message}</p>`;
-
-    // Dùng FormData built-in (Node 18+) để tạo multipart/form-data
     const form = new FormData();
-    form.append('body', htmlBody);
-    form.append('signId', signId);
+    form.append('body', `<p>${content}</p>`);
+    form.append('signId', uuidv4());
 
     try {
       const response = await httpClient.post(
         `/channels/${channelId}/messages`,
         form,
-        {
-          // Bỏ content-type mặc định của instance để axios tự set boundary đúng
-          headers: { 'content-type': undefined },
-        }
+        { headers: form.getHeaders() }
       );
       return response.data?.data || response.data;
     } catch (err) {
@@ -47,10 +40,10 @@ module.exports = function (token, httpClient) {
         throw new Error('Session expired, please re-login');
       }
       if (err.response?.status === 429) {
-        const retryAfter = err.response.headers['retry-after'] || 3;
+        const retryAfter = Number(err.response.headers['retry-after'] || 3);
         console.log(`[newchat.js] Rate limit, thử lại sau ${retryAfter}s...`);
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
-        return sendMessage(channelId, message);
+        return (module.exports(token, httpClient))(channelId, content);
       }
       console.error('[newchat.js ERROR] sendMessage thất bại:', err.message);
       throw err;

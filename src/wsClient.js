@@ -287,13 +287,4 @@ function disconnect() {
   }
 }
 
-/**
- * Gửi bất kỳ Socket.IO event nào (dùng cho markAsRead và các hàm tùy chỉnh).
- * @param {string} eventName
- * @param {*} payload
- */
-function emitEvent(eventName, payload) {
-  _emitEvent(eventName, payload);
-}
-
-module.exports = { connect, disconnect, sendMessage, emitEvent, emitter };
+module.exports = { connect, disconnect, sendMessage, emitter };
