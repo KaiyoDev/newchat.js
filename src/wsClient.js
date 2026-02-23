@@ -17,8 +17,8 @@ const SIO_EVENT = 2;
 const EIO_PING = '2';
 const EIO_PONG = '3';
 
-// Events tin nhắn
-const MESSAGE_EVENTS = ['message', 'new_message'];
+// Events tin nhắn (verify tên event chính xác từ F12 khi có incoming message)
+const MESSAGE_EVENTS = ['message', 'new_message', 'channel_message'];
 
 const emitter = new EventEmitter();
 
@@ -166,6 +166,32 @@ function _handleBinaryFrame(data) {
 }
 
 /**
+ * Chuẩn hoá raw WS message payload thành format thống nhất.
+ * @param {string} eventName
+ * @param {*} raw
+ * @returns {Object}
+ */
+function _normalizeMessage(eventName, raw) {
+  // Strip HTML tags từ body (<p>hello</p> → "hello")
+  const stripHtml = (str) =>
+    typeof str === 'string' ? str.replace(/<[^>]*>/g, '').trim() : str;
+
+  return {
+    type: 'message',
+    messageID: raw._id || raw.id || null,
+    threadID: raw.channelId || raw.channel || raw.threadId || raw.to || null,
+    senderID: raw.user?._id || raw.user || raw.userId || raw.sender || null,
+    senderName: raw.user?.fullName || null,
+    body: stripHtml(raw.body || raw.content || raw.text || ''),
+    bodyHtml: raw.body || null,
+    attachments: raw.attachments || [],
+    createdAt: raw.createdAt || null,
+    isSystem: raw.isSystem || false,
+    _raw: raw, // raw payload để debug
+  };
+}
+
+/**
  * Phân loại và emit event ra emitter.
  * @param {string} eventName
  * @param {*} eventData
@@ -174,7 +200,7 @@ function _dispatchEvent(eventName, eventData) {
   console.log(`[newchat.js] Event "${eventName}":`, JSON.stringify(eventData).slice(0, 150));
 
   if (MESSAGE_EVENTS.includes(eventName)) {
-    emitter.emit('message', eventData);
+    emitter.emit('message', _normalizeMessage(eventName, eventData));
     return;
   }
 
@@ -261,4 +287,13 @@ function disconnect() {
   }
 }
 
-module.exports = { connect, disconnect, sendMessage, emitter };
+/**
+ * Gửi bất kỳ Socket.IO event nào (dùng cho markAsRead và các hàm tùy chỉnh).
+ * @param {string} eventName
+ * @param {*} payload
+ */
+function emitEvent(eventName, payload) {
+  _emitEvent(eventName, payload);
+}
+
+module.exports = { connect, disconnect, sendMessage, emitEvent, emitter };

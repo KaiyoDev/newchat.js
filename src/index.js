@@ -5,10 +5,44 @@
 const { httpClient, setToken } = require('./httpUtils');
 
 /**
+ * Build api object từ token đã có (dùng chung cho login và loadAppState).
+ * @param {string} token
+ * @returns {Object} api
+ */
+function _buildApi(token) {
+  const sendMessage      = require('./api/sendMessage')(token, httpClient);
+  const listen           = require('./api/listen')(token, httpClient);
+  const getThreadList    = require('./api/getThreadList')(token, httpClient);
+  const getUserInfo      = require('./api/getUserInfo')(token, httpClient);
+  const getThreadHistory = require('./api/getThreadHistory')(token, httpClient);
+  const markAsRead       = require('./api/markAsRead')(token, httpClient);
+  const sendAttachment   = require('./api/sendAttachment')(token, httpClient);
+
+  /**
+   * Trả về trạng thái session để lưu lại (tương tự AppState của fca-unofficial).
+   * @returns {{ token: string }}
+   */
+  function getAppState() {
+    return { token };
+  }
+
+  return {
+    sendMessage,
+    sendAttachment,
+    listen,
+    getThreadList,
+    getThreadHistory,
+    getUserInfo,
+    markAsRead,
+    getAppState,
+  };
+}
+
+/**
  * Đăng nhập vào newchat.vn và trả về object api.
  * @param {string} email - Email tài khoản
  * @param {string} password - Mật khẩu tài khoản
- * @returns {Promise<Object>} api object gồm: sendMessage, listen, getThreadList, getUserInfo, getAppState
+ * @returns {Promise<Object>} api object
  */
 async function login(email, password) {
   let token;
@@ -32,26 +66,27 @@ async function login(email, password) {
     throw err;
   }
 
-  const sendMessage = require('./api/sendMessage')(token, httpClient);
-  const listen = require('./api/listen')(token, httpClient);
-  const getThreadList = require('./api/getThreadList')(token, httpClient);
-  const getUserInfo = require('./api/getUserInfo')(token, httpClient);
+  return _buildApi(token);
+}
 
-  /**
-   * Trả về trạng thái session hiện tại để lưu lại (tương tự AppState của fca-unofficial).
-   * @returns {{ token: string }}
-   */
-  function getAppState() {
-    return { token };
-  }
+/**
+ * Khôi phục session từ AppState đã lưu — bỏ qua bước login, tiết kiệm 1 request.
+ * Dùng để restart bot mà không cần đăng nhập lại.
+ *
+ * @param {{ token: string }} appState - Object trả về từ getAppState()
+ * @returns {Object} api object (giống login)
+ * @example
+ *   const { token } = JSON.parse(fs.readFileSync('appstate.json'));
+ *   const api = await loadAppState({ token });
+ */
+async function loadAppState({ token } = {}) {
+  if (!token) throw new Error('loadAppState: token là bắt buộc');
 
-  return {
-    sendMessage,
-    listen,
-    getThreadList,
-    getUserInfo,
-    getAppState,
-  };
+  setToken(token);
+  console.log('[newchat.js] AppState đã load, bỏ qua login');
+
+  return _buildApi(token);
 }
 
 module.exports = login;
+module.exports.loadAppState = loadAppState;
