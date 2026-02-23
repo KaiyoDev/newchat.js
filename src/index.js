@@ -17,6 +17,7 @@ function _buildApi(token) {
   const getThreadHistory = require('./api/getThreadHistory')(token, httpClient);
   const markAsRead       = require('./api/markAsRead')(token, httpClient);
   const sendAttachment   = require('./api/sendAttachment')(token, httpClient);
+  const getMyProfile     = getUserInfo; // alias — lấy profile của tài khoản đang đăng nhập
 
   /**
    * Trả về trạng thái session để lưu lại (tương tự AppState của fca-unofficial).
@@ -33,6 +34,7 @@ function _buildApi(token) {
     getThreadList,
     getThreadHistory,
     getUserInfo,
+    getMyProfile,
     markAsRead,
     getAppState,
   };
