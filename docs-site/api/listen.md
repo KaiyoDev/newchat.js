@@ -1,9 +1,10 @@
 # listen()
 
-Lắng nghe tin nhắn và sự kiện realtime qua WebSocket (Socket.IO + MessagePack encoding).
+Kết nối WebSocket và lắng nghe events realtime (Socket.IO v4 + MessagePack binary).  
+Tin nhắn của chính bot (`isSelf: true`) được **tự động lọc bỏ** trong nội bộ.
 
 ```js
-const { stopListening } = api.listen(callback);
+const { stopListening } = await api.listen(callback);
 ```
 
 ## Parameters
@@ -14,7 +15,7 @@ const { stopListening } = api.listen(callback);
 
 ## Returns
 
-`{ stopListening: Function }` — gọi `stopListening()` để ngắt kết nối WebSocket.
+`Promise<{ stopListening: Function }>` — gọi `stopListening()` để ngắt kết nối WebSocket.
 
 ## Event Types
 
@@ -24,20 +25,27 @@ const { stopListening } = api.listen(callback);
 {
   type: 'message',
   data: {
-    type: 'message',
-    messageID: '699c774211e0ddc33b19e93c',
-    threadID: '691c4437a50691e99899726a',  // channelId
-    senderID: '691c410089308dee9775c3bc',  // userId người gửi
-    senderName: 'Đặng Hoàng Ân',
-    body: 'hello',                          // plain text (HTML đã strip)
-    bodyHtml: '<p>hello</p>',              // HTML gốc từ server
-    attachments: [],
-    createdAt: '2026-02-23T15:02:52.695Z',
-    isSystem: false,
-    _raw: { /* payload gốc để debug */ }
+    type:        'message',
+    action:      'create',                       // "create" | "update" | "delete"
+    messageID:   '699da6ad11e0ddc33b19ec91',
+    threadID:    '691c4437a50691e99899726a',     // channelId
+    senderID:    '691741d094075d77d5ac4d79',     // userId người gửi
+    senderName:  'Nguyễn Văn A',
+    body:        'hello',                        // plain text, đã strip HTML
+    bodyHtml:    '<p>hello</p>',                 // HTML gốc từ server
+    attachments: [],                             // null hoặc array file đính kèm
+    createdAt:   '2026-02-23T15:02:52.695Z',     // ISO 8601
+    isSystem:    false,                          // true nếu tin nhắn hệ thống
+    isSelf:      false,                          // true nếu chính bot gửi
+    signId:      'ff598914-e7e0-4979-9cd8-629dd95a1d4f', // UUID dedup
+    _raw:        { /* payload gốc từ server */ }
   }
 }
 ```
+
+::: tip isSelf
+`isSelf` được tính tự động dựa trên userId decode từ JWT. Không cần so sánh `senderID` thủ công nữa.
+:::
 
 ### `typing` — Đang gõ
 
@@ -71,29 +79,27 @@ WebSocket tự động reconnect khi mất kết nối với **exponential backo
 
 | Lần thử | Delay |
 |---------|-------|
-| 1 | 1s |
-| 2 | 2s |
-| 3 | 4s |
-| 4 | 8s |
-| 5 | 16s |
+| 1 | 2s |
+| 2 | 4s |
+| 3 | 8s |
+| 4 | 16s |
+| 5 | 30s — dừng hẳn, emit `error` |
 
-Sau 5 lần thất bại, emit `error` với message `"Max reconnect attempts reached"`.
+## Examples
 
-## Example
-
-### Echo bot cơ bản
+### Ping/pong bot
 
 ```js
-const { stopListening } = api.listen((err, event) => {
+const { stopListening } = await api.listen((err, event) => {
   if (err) return console.error(err.message);
+  if (event.type !== 'message') return;
 
-  if (event.type === 'message') {
-    const { threadID, body, senderID } = event.data;
+  const { threadID, body, isSelf } = event.data;
 
-    if (senderID === me._id) return; // bỏ qua tin của chính bot
+  if (isSelf) return; // bỏ qua tin của chính bot (tự động)
 
-    api.sendMessage(threadID, `Echo: ${body}`);
-    api.markAsRead(threadID);
+  if (body === '/ping') {
+    api.sendMessage(threadID, 'pong 🏓');
   }
 });
 ```
@@ -101,22 +107,18 @@ const { stopListening } = api.listen((err, event) => {
 ### Lắng nghe typing
 
 ```js
-api.listen((err, event) => {
+await api.listen((err, event) => {
   if (event?.type === 'typing') {
     console.log(`${event.data.userId} đang gõ trong ${event.data.channelId}`);
   }
 });
 ```
 
-### Dừng sau timeout
+### Dừng khi Ctrl+C
 
 ```js
-const { stopListening } = api.listen(callback);
+const { stopListening } = await api.listen(callback);
 
-// Dừng sau 1 phút
-setTimeout(stopListening, 60_000);
-
-// Hoặc khi nhận SIGINT
 process.on('SIGINT', () => {
   stopListening();
   process.exit(0);
@@ -125,4 +127,6 @@ process.on('SIGINT', () => {
 
 ## Kỹ thuật
 
-WebSocket kết nối tới `wss://ws.newchat.vn` thông qua Socket.IO v4. Auth được thực hiện bằng cách gửi binary frame MessagePack `{ token }` ngay sau Engine.IO OPEN handshake.
+WebSocket kết nối tới `wss://ws.newchat.vn` qua Socket.IO v4.  
+Auth: gửi binary frame MessagePack `{ type: 0, data: { token }, nsp: "/" }` ngay sau Engine.IO OPEN handshake.  
+Heartbeat: server gửi TEXT `"2"` (ping) mỗi 25s → client reply `"3"` (pong) ngay lập tức.

@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: "newchat.js"
-  text: "Unofficial NewChat API"
+  text: "Unofficial NewChat API for Node.js"
   tagline: Xây dựng chatbot cho newchat.vn bằng Node.js — dễ dàng như fca-unofficial.
   actions:
     - theme: brand
@@ -22,12 +22,16 @@ features:
     details: API đơn giản, quen thuộc với người dùng fca-unofficial. Login xong là dùng ngay.
 
   - icon: 🔄
-    title: Realtime WebSocket
-    details: Lắng nghe tin nhắn qua Socket.IO + MessagePack. Tự động reconnect khi mất kết nối.
+    title: WebSocket Realtime
+    details: Socket.IO v4 + MessagePack binary encoding. Tự động reconnect với exponential backoff khi mất kết nối.
+
+  - icon: 🔐
+    title: JWT Auth
+    details: Bearer token tự động inject vào mọi request. AppState pattern lưu session, không cần login lại.
 
   - icon: 💾
     title: AppState Pattern
-    details: Lưu session vào file, tái sử dụng không cần login lại mỗi lần khởi động bot.
+    details: Lưu token vào file, tái sử dụng không cần login lại mỗi lần khởi động bot.
 
   - icon: 📎
     title: Gửi file & ảnh

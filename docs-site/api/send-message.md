@@ -87,6 +87,10 @@ console.log('Sent messageID:', result.message._id);
 
 ## Kỹ thuật
 
-Endpoint: `POST https://api.newchat.vn/channels/{channelId}/messages`  
-Content-Type: `multipart/form-data`  
-Fields: `body` (HTML string), `signId` (UUID v4 random mỗi request)
+Gửi qua **REST API** (không qua WebSocket):
+
+- **Endpoint:** `POST https://api.newchat.vn/channels/{channelId}/messages`
+- **Content-Type:** `multipart/form-data`
+- **Fields:**
+  - `body` — nội dung HTML, tự wrap: `<p>content</p>`
+  - `signId` — UUID v4 random mỗi request (dùng để dedup phía server)

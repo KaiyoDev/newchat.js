@@ -42,21 +42,25 @@ async function start() {
   const me = await api.getMyProfile();
   console.log(`✅ Bot đang chạy: ${me.fullName} (@${me.username})`);
 
-  const { stopListening } = api.listen((err, event) => {
+  const { stopListening } = await api.listen((err, event) => {
     if (err) return console.error('[ERROR]', err.message);
 
-    if (event.type === 'message') {
-      const { threadID, body, senderID } = event.data;
+    if (event.type !== 'message') return;
 
-      // Bỏ qua tin nhắn của chính bot
-      if (senderID === me._id) return;
+    const { threadID, body, senderName, isSelf } = event.data;
 
-      console.log(`[${threadID}] ${senderID}: ${body}`);
+    // isSelf tự động — không cần so sánh senderID thủ công
+    if (isSelf) return;
 
-      // Echo lại
+    console.log(`[${threadID}] ${senderName}: ${body}`);
+
+    if (body === '/ping') {
+      api.sendMessage(threadID, 'pong 🏓').catch(console.error);
+    } else {
       api.sendMessage(threadID, `Echo: ${body}`).catch(console.error);
-      api.markAsRead(threadID).catch(console.error);
     }
+
+    api.markAsRead(threadID).catch(console.error);
   });
 
   process.on('SIGINT', () => {

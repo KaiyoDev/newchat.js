@@ -4,11 +4,16 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write  # ← cần để xóa runs
     steps:
       - uses: actions/checkout@v4
 
@@ -28,3 +33,11 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: docs-site/.vitepress/dist
           force_orphan: true
+
+      - name: Delete old workflow runs  # ← thêm bước này
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 0       # xóa hết runs cũ
+          keep_minimum_runs: 1 # chỉ giữ lại run mới nhất
