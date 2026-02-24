@@ -20,6 +20,7 @@ const SIO_EVENT      = 2;
 // Engine.IO heartbeat
 const EIO_PING = '2';
 const EIO_PONG = '3';
+const EIO_MSG_BYTE = 0x04; // EIO packet type "message" — prefix bắt buộc cho binary frame
 
 // Tên event tin nhắn đã xác nhận từ F12
 const MESSAGE_EVENTS = ['channel:message'];
@@ -27,8 +28,8 @@ const MESSAGE_EVENTS = ['channel:message'];
 const emitter = new EventEmitter();
 
 let ws              = null;
-let _token          = null;
-let _channelIds     = [];   // danh sách channel cần subscribe sau CONNECT ACK
+let _token           = null;
+let _currentUserId   = null;  // userId của bot — dùng để filter tin nhắn tự gửi
 let retryCount       = 0;
 let manualDisconnect = false;
 let connected        = false;
@@ -36,20 +37,20 @@ let connected        = false;
 /**
  * Khởi tạo kết nối WebSocket tới Socket.IO server.
  * Auth flow:
- *   1. Server → TEXT: 0{sid, pingInterval, ...}   (EIO OPEN)
+ *   1. Server → TEXT: 0{sid, pingInterval}  (EIO OPEN)
  *   2. Client → BINARY: msgpack({ type:0, data:{token}, nsp:"/" })
  *   3. Server → BINARY: msgpack({ type:0, data:{sid,pid}, nsp:"/" }) → CONNECT ACK
- *   4. Server tự push event "channel:message" — không cần subscribe thêm
- *   Heartbeat: Server gửi TEXT "2" (ping) → Client reply TEXT "3" (pong) ngay lập tức
+ *   4. Chờ server push event — không gửi thêm gì sau CONNECT ACK
+ *   Heartbeat: Server TEXT "2" (ping) → Client reply TEXT "3" (pong) ngay lập tức
  *
- * @param {string}   token      - JWT token từ login()
- * @param {string[]} [channelIds=[]] - Danh sách channel IDs để subscribe ngay sau CONNECT ACK
+ * @param {string} token  - JWT token từ login()
+ * @param {string} userId - User ID của bot (lấy từ JWT payload) để filter self messages
  */
-function connect(token, channelIds) {
-  _token      = token;
-  _channelIds = Array.isArray(channelIds) ? channelIds : [];
+function connect(token, userId) {
+  _token         = token;
+  _currentUserId = userId || null;
   manualDisconnect = false;
-  retryCount  = 0;
+  retryCount = 0;
   _createWs();
 }
 
@@ -75,47 +76,44 @@ function _createWs() {
     },
   });
 
-  ws.on('message', (data, isBinary) => {
-    // Chuẩn hoá về string để detect ping/pong (server có thể gửi dạng string, Buffer, hoặc ArrayBuffer)
-    let str = null;
-    if (!isBinary && typeof data === 'string') {
-      str = data;
-    } else if (Buffer.isBuffer(data)) {
-      const text = data.toString('utf8');
-      if (text === EIO_PING || text === EIO_PONG) str = text;
-    } else if (data instanceof ArrayBuffer) {
-      const text = Buffer.from(data).toString('utf8');
-      if (text === EIO_PING || text === EIO_PONG) str = text;
-    }
+  ws.on('message', (data) => {
+    const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    const firstByte = buf[0];
 
-    // Ping/pong ưu tiên tuyệt đối — reply ngay lập tức
-    if (str === EIO_PING) {
-      console.log('[newchat.js] ← server PING');
-      ws.send(EIO_PONG);
-      console.log('[newchat.js] → client PONG sent');
+    // Engine.IO TEXT frames: byte đầu là ASCII digit '0'–'9' (0x30–0x39)
+    // ws library đôi khi deliver text frame dưới dạng Buffer nên KHÔNG dùng isBinary
+    if (firstByte >= 0x30 && firstByte <= 0x39) {
+      const str = buf.toString('utf8');
+
+      if (str === EIO_PING) {
+        ws.send(EIO_PONG);
+        console.log('[newchat.js] ← PING → PONG');
+        return;
+      }
+
+      if (str === EIO_PONG) return; // server pong, ignore
+
+      if (str.startsWith('0')) {
+        // EIO OPEN: 0{"sid":"...","pingInterval":25000,...}
+        try {
+          const eioData = JSON.parse(str.slice(1));
+          console.log('[newchat.js] EIO OPEN — sid:', eioData.sid, '| pingInterval:', eioData.pingInterval);
+        } catch (e) {
+          console.error('[newchat.js ERROR] Parse EIO OPEN thất bại:', e.message);
+        }
+        _sendAuthFrame();
+        return;
+      }
+
+      console.log('[newchat.js] EIO text frame (unhandled):', str.slice(0, 80));
       return;
     }
 
-    // Binary msgpack frame
-    if (isBinary || (Buffer.isBuffer(data) && str === null)) {
-      _handleBinaryFrame(data);
-      return;
-    }
-
-    // Text frame còn lại (EIO OPEN, v.v.)
-    _handleTextFrame(str ?? data.toString());
+    // Còn lại là binary msgpack frame — decode và xử lý
+    _handleSioPacket(buf);
   });
 
-  // Heartbeat chủ động mỗi 20s — trước khi server timeout (25s)
-  const heartbeatTimer = setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(EIO_PING);
-      console.log('[newchat.js] → heartbeat PING sent');
-    }
-  }, 20000);
-
   ws.on('close', (code, reason) => {
-    clearInterval(heartbeatTimer);
     connected = false;
     const reasonStr = reason?.toString() || '(no reason)';
     console.log(`[newchat.js] WebSocket đóng — code: ${code}, reason: ${reasonStr}`);
@@ -132,44 +130,30 @@ function _createWs() {
 }
 
 /**
- * Xử lý TEXT frame từ server.
- * - EIO OPEN (0{...}) → gửi msgpack CONNECT + auth
- * - EIO PING (2)      → trả PONG (3)
+ * Gửi SIO CONNECT auth frame (raw msgpack, không có EIO prefix).
  */
-function _handleTextFrame(msg) {
-  // EIO OPEN
-  if (msg.startsWith('0')) {
-    try {
-      const handshake = JSON.parse(msg.slice(1));
-      pingIntervalMs = handshake.pingInterval || 25000;
-      console.log('[newchat.js] EIO OPEN — sid:', handshake.sid, '| pingInterval:', pingIntervalMs);
-    } catch (e) {
-      console.error('[newchat.js ERROR] Parse EIO OPEN thất bại:', e.message);
-    }
-
-    try {
-      const authFrame = encode({ type: SIO_CONNECT, data: { token: _token }, nsp: '/' });
-      ws.send(Buffer.from(authFrame));
-      console.log('[newchat.js] Đã gửi msgpack auth frame (SIO_CONNECT)');
-    } catch (e) {
-      console.error('[newchat.js ERROR] Encode auth frame thất bại:', e.message);
-    }
-    return;
+function _sendAuthFrame() {
+  try {
+    ws.send(Buffer.from(encode({ type: SIO_CONNECT, data: { token: _token }, nsp: '/' })));
+    console.log('[newchat.js] Đã gửi msgpack auth frame (SIO_CONNECT)');
+  } catch (e) {
+    console.error('[newchat.js ERROR] Encode auth frame thất bại:', e.message);
   }
-
-  console.log('[newchat.js] TEXT frame (unhandled):', msg.slice(0, 120));
 }
 
 /**
- * Xử lý BINARY (msgpack) frame từ server.
- * Log toàn bộ frame nhận được sau CONNECT ACK để debug.
+ * Decode và xử lý Socket.IO binary (msgpack) frame.
+ * Frame có thể có EIO prefix byte 0x04 (EVENT) hoặc không (CONNECT ACK).
  */
-function _handleBinaryFrame(data) {
+function _handleSioPacket(buf) {
   let packet;
   try {
-    packet = decode(data);
+    // EVENT frames có EIO prefix 0x04, CONNECT ACK thì không
+    const payload = buf[0] === EIO_MSG_BYTE ? buf.slice(1) : buf;
+    packet = decode(payload);
   } catch (e) {
-    console.error('[newchat.js ERROR] Decode msgpack frame thất bại:', e.message);
+    console.error('[newchat.js ERROR] Decode msgpack frame thất bại:', e.message,
+      '| first byte:', buf[0]?.toString(16), '| len:', buf.length);
     return;
   }
 
@@ -181,7 +165,6 @@ function _handleBinaryFrame(data) {
     retryCount = 0;
     console.log('[newchat.js] Socket.IO CONNECT ACK ✓  sid:', payload.sid);
     emitter.emit('connected', payload.sid);
-    _subscribeChannels();
     return;
   }
 
@@ -206,28 +189,6 @@ function _handleBinaryFrame(data) {
   );
 }
 
-/**
- * Subscribe vào danh sách channels ngay sau CONNECT ACK.
- * Nếu server kick do không subscribe, đây là bước bắt buộc.
- */
-function _subscribeChannels() {
-  if (!_channelIds || _channelIds.length === 0) {
-    console.log('[newchat.js] Không có channelIds để subscribe — bỏ qua');
-    return;
-  }
-
-  try {
-    const frame = encode({
-      type: SIO_EVENT,
-      data: ['subscribe', { channels: _channelIds }],
-      nsp: '/',
-    });
-    ws.send(Buffer.from(frame));
-    console.log(`[newchat.js] Đã gửi subscribe cho ${_channelIds.length} channels`);
-  } catch (e) {
-    console.error('[newchat.js ERROR] Gửi subscribe thất bại:', e.message);
-  }
-}
 
 /**
  * Chuẩn hoá raw payload của event "channel:message" thành format thống nhất.
@@ -255,7 +216,8 @@ function _normalizeMessage(eventName, raw) {
     attachments: msg.attachments || [],
     createdAt:   msg.createdAt  || null,
     isSystem:    msg.isSystem   || false,
-    signId:      msg.signId     || null,   // dùng để dedup tin nhắn tự gửi
+    signId:      msg.signId     || null,
+    isSelf:      !!(_currentUserId && msg.user?._id === _currentUserId),
     _raw:        raw,
   };
 }
@@ -267,7 +229,12 @@ function _dispatchEvent(eventName, eventData) {
   console.log(`[newchat.js] Event "${eventName}":`, JSON.stringify(eventData).slice(0, 200));
 
   if (MESSAGE_EVENTS.includes(eventName)) {
-    emitter.emit('message', _normalizeMessage(eventName, eventData));
+    const msg = _normalizeMessage(eventName, eventData);
+    if (msg.isSelf) {
+      console.log('[newchat.js] Bỏ qua tin nhắn của chính bot (isSelf)');
+      return;
+    }
+    emitter.emit('message', msg);
     return;
   }
 
@@ -280,14 +247,23 @@ function _dispatchEvent(eventName, eventData) {
 }
 
 /**
+ * Wrap msgpack bytes với EIO prefix byte 0x04 trước khi gửi.
+ * EIO4 binary frame = [0x04][...msgpack...]
+ * @param {Uint8Array} encoded - kết quả từ encode()
+ * @returns {Buffer}
+ */
+function _eioWrap(encoded) {
+  return Buffer.concat([Buffer.from([EIO_MSG_BYTE]), Buffer.from(encoded)]);
+}
+
+/**
  * Encode và gửi Socket.IO EVENT qua msgpack binary frame.
  */
 function _emitEvent(eventName, payload) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     throw new Error('[newchat.js ERROR] WebSocket chưa kết nối');
   }
-  const frame = encode({ type: SIO_EVENT, data: [eventName, payload], nsp: '/' });
-  ws.send(Buffer.from(frame));
+  ws.send(_eioWrap(encode({ type: SIO_EVENT, data: [eventName, payload], nsp: '/' })));
 }
 
 /**
@@ -330,4 +306,4 @@ function disconnect() {
   }
 }
 
-module.exports = { connect, disconnect, sendMessage, emitter };
+module.exports = { connect, disconnect, emitter };

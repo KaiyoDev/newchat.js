@@ -13,28 +13,28 @@ const { v4: uuidv4 } = require('uuid');
  */
 module.exports = function (token, httpClient) {
   /**
-   * Gửi tin nhắn văn bản đến channel.
+   * Gửi tin nhắn văn bản đến channel qua REST API.
    * Endpoint: POST /channels/{channelId}/messages (multipart/form-data)
    *
-   * @param {string} channelId - ID của channel/thread
-   * @param {string} content - Nội dung plain text (tự động wrap thành HTML)
+   * @param {string} threadID - ID của channel/thread
+   * @param {string} content  - Nội dung plain text (tự động wrap thành HTML)
    * @returns {Promise<Object>} response data từ server
    */
-  return async function sendMessage(channelId, content) {
-    if (!channelId) throw new Error('sendMessage: channelId là bắt buộc');
-    if (!content)   throw new Error('sendMessage: content là bắt buộc');
+  return async function sendMessage(threadID, content) {
+    if (!threadID) throw new Error('sendMessage: threadID là bắt buộc');
+    if (!content)  throw new Error('sendMessage: content là bắt buộc');
 
     const form = new FormData();
     form.append('body', `<p>${content}</p>`);
     form.append('signId', uuidv4());
 
     try {
-      const response = await httpClient.post(
-        `/channels/${channelId}/messages`,
+      const res = await httpClient.post(
+        `/channels/${threadID}/messages`,
         form,
         { headers: form.getHeaders() }
       );
-      return response.data?.data || response.data;
+      return res.data;
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         throw new Error('Session expired, please re-login');
@@ -43,7 +43,7 @@ module.exports = function (token, httpClient) {
         const retryAfter = Number(err.response.headers['retry-after'] || 3);
         console.log(`[newchat.js] Rate limit, thử lại sau ${retryAfter}s...`);
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
-        return (module.exports(token, httpClient))(channelId, content);
+        return (module.exports(token, httpClient))(threadID, content);
       }
       console.error('[newchat.js ERROR] sendMessage thất bại:', err.message);
       throw err;

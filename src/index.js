@@ -5,13 +5,29 @@
 const { httpClient, setToken } = require('./httpUtils');
 
 /**
+ * Decode JWT payload mà không cần verify signature.
+ * Dùng để lấy userId từ token sau khi login.
+ * @param {string} token
+ * @returns {{ id?: string, email?: string } | null}
+ */
+function _decodeJwt(token) {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Build api object từ token đã có (dùng chung cho login và loadAppState).
  * @param {string} token
+ * @param {string} [userId] - User ID decode từ JWT (dùng để filter self messages)
  * @returns {Object} api
  */
-function _buildApi(token) {
+function _buildApi(token, userId) {
   const sendMessage      = require('./api/sendMessage')(token, httpClient);
-  const listen           = require('./api/listen')(token, httpClient);
+  const listen           = require('./api/listen')(token, httpClient, userId);
   const getThreadList    = require('./api/getThreadList')(token, httpClient);
   const getUserInfo      = require('./api/getUserInfo')(token, httpClient);
   const getThreadHistory = require('./api/getThreadHistory')(token, httpClient);
@@ -68,7 +84,9 @@ async function login(email, password) {
     throw err;
   }
 
-  return _buildApi(token);
+  const userId = _decodeJwt(token)?.id || null;
+  if (userId) console.log('[newchat.js] Bot userId:', userId);
+  return _buildApi(token, userId);
 }
 
 /**
@@ -87,7 +105,9 @@ async function loadAppState({ token } = {}) {
   setToken(token);
   console.log('[newchat.js] AppState đã load, bỏ qua login');
 
-  return _buildApi(token);
+  const userId = _decodeJwt(token)?.id || null;
+  if (userId) console.log('[newchat.js] Bot userId:', userId);
+  return _buildApi(token, userId);
 }
 
 // Default export: login (tương thích fca-unofficial pattern)
