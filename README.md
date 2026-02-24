@@ -134,6 +134,11 @@ cd docs-site && npm run build
 
 ---
 
+## Contributors ✨
+
+<!-- ALL-CONTRIBUTORS-LIST:START -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
 ## License
 
 MIT © [KaiyoDev](https://github.com/KaiyoDev)
