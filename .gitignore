@@ -140,6 +140,7 @@ vite.config.ts.timestamp-*
 
 .cursorrules
 /test.js
+.npmignore
 
 # Editor directories
 .vscode/
