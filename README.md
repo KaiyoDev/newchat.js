@@ -1,21 +1,31 @@
 <p align="center">
-  <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+  <!-- Logo -->
+  <img src="https://raw.githubusercontent.com/KaiyoDev/newchat.js/main/docs-site/public/logo.svg" alt="newchat.js logo" width="84" height="84" style="margin-bottom: 0.5rem;" />
+
+  <!-- Project Name -->
+  <h1 style="margin-bottom: 0.25rem;">newchat.js</h1>
+
+  <!-- Subtitle -->
+  <b>Unofficial Node.js API wrapper for <a href="https://newchat.vn" target="_blank">newchat.vn</a></b>
+
+  <!-- Shields -->
+  <br>
+  <a href="https://www.npmjs.com/package/newchat.js">
+    <img src="https://img.shields.io/npm/v/newchat.js?color=crimson&style=flat-square" alt="npm version"/>
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="MIT license"/>
+  </a>
+  <a href="https://nodejs.org">
+    <img src="https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen?style=flat-square&logo=node.js" alt="Node.js >=18"/>
+  </a>
+  <a href="https://kaiyodev.github.io/newchat.js">
+    <img src="https://img.shields.io/badge/Docs-VitePress-646cff?style=flat-square" alt="Docs"/>
+  </a>
   <a href="#contributors-">
     <img src="https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square" alt="All Contributors"/>
   </a>
-  <!-- ALL-CONTRIBUTORS-BADGE:END -->
 </p>
-
-# newchat.js
-
-**Unofficial Node.js API wrapper for [newchat.vn](https://newchat.vn)**
-
-[![npm](https://img.shields.io/npm/v/newchat.js?color=crimson&style=flat-square)](https://www.npmjs.com/package/newchat.js)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen?style=flat-square&logo=node.js)](https://nodejs.org)
-[![Docs](https://img.shields.io/badge/Docs-VitePress-646cff?style=flat-square)](https://kaiyodev.github.io/newchat.js)
-
-</div>
 
 ---
 
