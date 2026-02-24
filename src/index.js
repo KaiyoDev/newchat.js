@@ -90,5 +90,8 @@ async function loadAppState({ token } = {}) {
   return _buildApi(token);
 }
 
+// Default export: login (tương thích fca-unofficial pattern)
+// Named exports: hỗ trợ cả destructuring
 module.exports = login;
+module.exports.login = login;
 module.exports.loadAppState = loadAppState;
