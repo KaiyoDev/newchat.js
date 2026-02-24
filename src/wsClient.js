@@ -9,39 +9,49 @@ const { encode, decode } = require('@msgpack/msgpack');
 const WS_URL = 'wss://ws.newchat.vn/socket.io/?EIO=4&transport=websocket';
 const MAX_RETRIES = 5;
 
-// Socket.IO packet types (nằm trong field "type" của msgpack frame)
-const SIO_CONNECT = 0;
-const SIO_EVENT = 2;
+// Exponential backoff delays (ms): lần 1=2s, 2=4s, 3=8s, 4=16s, 5=30s
+const RETRY_DELAYS = [2000, 4000, 8000, 16000, 30000];
 
-// Engine.IO text ping/pong
+// Socket.IO packet types
+const SIO_CONNECT    = 0;
+const SIO_DISCONNECT = 1;
+const SIO_EVENT      = 2;
+
+// Engine.IO heartbeat
 const EIO_PING = '2';
 const EIO_PONG = '3';
 
-// Events tin nhắn (verify tên event chính xác từ F12 khi có incoming message)
-const MESSAGE_EVENTS = ['message', 'new_message', 'channel_message'];
+// Tên event tin nhắn đã xác nhận từ F12
+const MESSAGE_EVENTS = ['channel:message'];
 
 const emitter = new EventEmitter();
 
-let ws = null;
-let _token = null;
-let retryCount = 0;
+let ws              = null;
+let _token          = null;
+let _channelIds     = [];   // danh sách channel cần subscribe sau CONNECT ACK
+let retryCount      = 0;
 let manualDisconnect = false;
-let pingTimer = null;
-let pingIntervalMs = 25000;
-let connected = false;
+let pingTimer       = null;
+let pingIntervalMs  = 25000;
+let connected       = false;
 
 /**
- * Khởi tạo kết nối WebSocket tới Socket.IO server với msgpack encoding.
+ * Khởi tạo kết nối WebSocket tới Socket.IO server.
  * Auth flow:
- *   1. Server gửi TEXT: 0{sid, pingInterval, ...}  (EIO OPEN)
- *   2. Client gửi BINARY: msgpack({ type:0, data:{token}, nsp:"/" })
- *   3. Server gửi BINARY: msgpack({ type:0, data:{sid, pid}, nsp:"/" })  → CONNECT ACK
+ *   1. Server → TEXT: 0{sid, pingInterval, ...}   (EIO OPEN)
+ *   2. Client → BINARY: msgpack({ type:0, data:{token}, nsp:"/" })
+ *   3. Server → BINARY: msgpack({ type:0, data:{sid,pid}, nsp:"/" }) → CONNECT ACK
+ *   4. Server tự push event "channel:message" — không cần subscribe thêm
+ *   Heartbeat: Server gửi TEXT "2" (ping) → Client reply TEXT "3" (pong) ngay lập tức
  *
- * @param {string} token - JWT token từ login()
+ * @param {string}   token      - JWT token từ login()
+ * @param {string[]} [channelIds=[]] - Danh sách channel IDs để subscribe ngay sau CONNECT ACK
  */
-function connect(token) {
-  _token = token;
+function connect(token, channelIds) {
+  _token      = token;
+  _channelIds = Array.isArray(channelIds) ? channelIds : [];
   manualDisconnect = false;
+  retryCount  = 0;
   _createWs();
 }
 
@@ -68,6 +78,12 @@ function _createWs() {
   });
 
   ws.on('message', (data, isBinary) => {
+    // EIO ping/pong: ưu tiên xử lý trước, không qua _handleTextFrame
+    if (!isBinary && data.toString() === EIO_PING) {
+      ws.send(EIO_PONG);
+      return;
+    }
+
     if (isBinary) {
       _handleBinaryFrame(data);
     } else {
@@ -75,12 +91,15 @@ function _createWs() {
     }
   });
 
-  ws.on('close', (code) => {
+  ws.on('close', (code, reason) => {
     connected = false;
     _clearPing();
-    console.log('[newchat.js] WebSocket đóng, code:', code);
+    const reasonStr = reason?.toString() || '(no reason)';
+    console.log(`[newchat.js] WebSocket đóng — code: ${code}, reason: ${reasonStr}`);
     emitter.emit('disconnect', code);
-    if (!manualDisconnect) _reconnect();
+
+    // code 1000 = normal close (manual), không reconnect
+    if (!manualDisconnect && code !== 1000) _reconnect();
   });
 
   ws.on('error', (err) => {
@@ -92,9 +111,7 @@ function _createWs() {
 /**
  * Xử lý TEXT frame từ server.
  * - EIO OPEN (0{...}) → gửi msgpack CONNECT + auth
- * - EIO PING (2) → trả PONG (3)
- *
- * @param {string} msg
+ * - EIO PING (2)      → trả PONG (3)
  */
 function _handleTextFrame(msg) {
   // EIO OPEN
@@ -102,36 +119,27 @@ function _handleTextFrame(msg) {
     try {
       const handshake = JSON.parse(msg.slice(1));
       pingIntervalMs = handshake.pingInterval || 25000;
-      console.log('[newchat.js] EIO OPEN, sid:', handshake.sid);
+      console.log('[newchat.js] EIO OPEN — sid:', handshake.sid, '| pingInterval:', pingIntervalMs);
     } catch (e) {
       console.error('[newchat.js ERROR] Parse EIO OPEN thất bại:', e.message);
     }
 
-    // Gửi CONNECT ACK dạng msgpack binary
-    // { type: 0, data: { token }, nsp: "/" }
     try {
       const authFrame = encode({ type: SIO_CONNECT, data: { token: _token }, nsp: '/' });
       ws.send(Buffer.from(authFrame));
-      console.log('[newchat.js] Đã gửi msgpack auth frame');
+      console.log('[newchat.js] Đã gửi msgpack auth frame (SIO_CONNECT)');
     } catch (e) {
       console.error('[newchat.js ERROR] Encode auth frame thất bại:', e.message);
     }
     return;
   }
 
-  // EIO PING → trả PONG
-  if (msg === EIO_PING) {
-    ws.send(EIO_PONG);
-    return;
-  }
+  console.log('[newchat.js] TEXT frame (unhandled):', msg.slice(0, 120));
 }
 
 /**
  * Xử lý BINARY (msgpack) frame từ server.
- * - type 0 + data.sid → CONNECT ACK
- * - type 2 + data[eventName, eventData] → Socket.IO EVENT
- *
- * @param {Buffer} data
+ * Log toàn bộ frame nhận được sau CONNECT ACK để debug.
  */
 function _handleBinaryFrame(data) {
   let packet;
@@ -145,12 +153,19 @@ function _handleBinaryFrame(data) {
   const { type, nsp, data: payload } = packet;
 
   // CONNECT ACK: { type: 0, data: { sid, pid }, nsp: "/" }
-  if (type === SIO_CONNECT && payload && payload.sid && !connected) {
-    connected = true;
+  if (type === SIO_CONNECT && payload?.sid && !connected) {
+    connected  = true;
     retryCount = 0;
     console.log('[newchat.js] Socket.IO CONNECT ACK ✓  sid:', payload.sid);
     emitter.emit('connected', payload.sid);
     _startPing();
+    _subscribeChannels();
+    return;
+  }
+
+  // DISCONNECT từ server
+  if (type === SIO_DISCONNECT) {
+    console.warn('[newchat.js] Server gửi SIO_DISCONNECT, nsp:', nsp);
     return;
   }
 
@@ -161,43 +176,71 @@ function _handleBinaryFrame(data) {
     return;
   }
 
-  // Frame không nhận dạng được — log để debug
-  console.log('[newchat.js] Msgpack frame (unhandled):', JSON.stringify(packet).slice(0, 150));
+  // Mọi frame khác — log đầy đủ để debug (kể cả frame server gửi trước khi đóng)
+  console.log(
+    '[newchat.js] Msgpack frame (unhandled) — type:', type,
+    '| nsp:', nsp,
+    '| payload:', JSON.stringify(payload).slice(0, 200)
+  );
 }
 
 /**
- * Chuẩn hoá raw WS message payload thành format thống nhất.
- * @param {string} eventName
- * @param {*} raw
- * @returns {Object}
+ * Subscribe vào danh sách channels ngay sau CONNECT ACK.
+ * Nếu server kick do không subscribe, đây là bước bắt buộc.
+ */
+function _subscribeChannels() {
+  if (!_channelIds || _channelIds.length === 0) {
+    console.log('[newchat.js] Không có channelIds để subscribe — bỏ qua');
+    return;
+  }
+
+  try {
+    const frame = encode({
+      type: SIO_EVENT,
+      data: ['subscribe', { channels: _channelIds }],
+      nsp: '/',
+    });
+    ws.send(Buffer.from(frame));
+    console.log(`[newchat.js] Đã gửi subscribe cho ${_channelIds.length} channels`);
+  } catch (e) {
+    console.error('[newchat.js ERROR] Gửi subscribe thất bại:', e.message);
+  }
+}
+
+/**
+ * Chuẩn hoá raw payload của event "channel:message" thành format thống nhất.
+ *
+ * Payload mẫu đã xác nhận từ F12:
+ * {
+ *   _id, channelId, user: { _id, fullName }, body, attachments,
+ *   createdAt, isSystem, signId
+ * }
  */
 function _normalizeMessage(eventName, raw) {
-  // Strip HTML tags từ body (<p>hello</p> → "hello")
   const stripHtml = (str) =>
     typeof str === 'string' ? str.replace(/<[^>]*>/g, '').trim() : str;
 
   return {
-    type: 'message',
-    messageID: raw._id || raw.id || null,
-    threadID: raw.channelId || raw.channel || raw.threadId || raw.to || null,
-    senderID: raw.user?._id || raw.user || raw.userId || raw.sender || null,
-    senderName: raw.user?.fullName || null,
-    body: stripHtml(raw.body || raw.content || raw.text || ''),
-    bodyHtml: raw.body || null,
+    type:        'message',
+    messageID:   raw._id        || null,
+    threadID:    raw.channelId  || null,
+    senderID:    raw.user?._id  || null,
+    senderName:  raw.user?.fullName || null,
+    body:        stripHtml(raw.body || ''),
+    bodyHtml:    raw.body       || null,
     attachments: raw.attachments || [],
-    createdAt: raw.createdAt || null,
-    isSystem: raw.isSystem || false,
-    _raw: raw, // raw payload để debug
+    createdAt:   raw.createdAt  || null,
+    isSystem:    raw.isSystem   || false,
+    signId:      raw.signId     || null,   // dùng để dedup tin nhắn tự gửi
+    _raw:        raw,
   };
 }
 
 /**
  * Phân loại và emit event ra emitter.
- * @param {string} eventName
- * @param {*} eventData
  */
 function _dispatchEvent(eventName, eventData) {
-  console.log(`[newchat.js] Event "${eventName}":`, JSON.stringify(eventData).slice(0, 150));
+  console.log(`[newchat.js] Event "${eventName}":`, JSON.stringify(eventData).slice(0, 200));
 
   if (MESSAGE_EVENTS.includes(eventName)) {
     emitter.emit('message', _normalizeMessage(eventName, eventData));
@@ -209,16 +252,11 @@ function _dispatchEvent(eventName, eventData) {
     return;
   }
 
-  // Wildcard — emit 'event' để debug
   emitter.emit('event', { type: eventName, data: eventData });
 }
 
 /**
  * Encode và gửi Socket.IO EVENT qua msgpack binary frame.
- * { type: 2, data: [eventName, payload], nsp: "/" }
- *
- * @param {string} eventName
- * @param {*} payload
  */
 function _emitEvent(eventName, payload) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -230,13 +268,8 @@ function _emitEvent(eventName, payload) {
 
 /**
  * Gửi tin nhắn qua WebSocket Socket.IO event.
- * Tên event "send_message" và payload cần verify từ F12.
- *
- * @param {string} threadId - ID của thread/channel
- * @param {string} content - Nội dung tin nhắn
  */
 function sendMessage(threadId, content) {
-  // TODO: verify event name ("send_message" | "message") từ F12 DevTools
   _emitEvent('send_message', { to: threadId, content, type: 'text' });
 }
 
@@ -261,17 +294,22 @@ function _clearPing() {
 
 /**
  * Tự động kết nối lại với exponential backoff, tối đa MAX_RETRIES lần.
+ * Nếu vượt quá → emit 'error' và dừng hẳn.
  */
 function _reconnect() {
   if (retryCount >= MAX_RETRIES) {
-    console.error('[newchat.js ERROR] Đã thử kết nối lại tối đa ' + MAX_RETRIES + ' lần, dừng lại');
-    emitter.emit('error', new Error('Max reconnect attempts reached'));
+    const err = new Error(`WebSocket thất bại sau ${MAX_RETRIES} lần kết nối lại, dừng hẳn`);
+    console.error('[newchat.js ERROR]', err.message);
+    emitter.emit('error', err);
     return;
   }
-  const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+
+  const delay = RETRY_DELAYS[retryCount] ?? 30000;
   retryCount++;
   console.log(`[newchat.js] Kết nối lại lần ${retryCount}/${MAX_RETRIES} sau ${delay}ms...`);
-  setTimeout(() => { if (!manualDisconnect) _createWs(); }, delay);
+  setTimeout(() => {
+    if (!manualDisconnect) _createWs();
+  }, delay);
 }
 
 /**
