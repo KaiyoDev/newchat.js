@@ -29,11 +29,9 @@ const emitter = new EventEmitter();
 let ws              = null;
 let _token          = null;
 let _channelIds     = [];   // danh sách channel cần subscribe sau CONNECT ACK
-let retryCount      = 0;
+let retryCount       = 0;
 let manualDisconnect = false;
-let pingTimer       = null;
-let pingIntervalMs  = 25000;
-let connected       = false;
+let connected        = false;
 
 /**
  * Khởi tạo kết nối WebSocket tới Socket.IO server.
@@ -78,22 +76,47 @@ function _createWs() {
   });
 
   ws.on('message', (data, isBinary) => {
-    // EIO ping/pong: ưu tiên xử lý trước, không qua _handleTextFrame
-    if (!isBinary && data.toString() === EIO_PING) {
+    // Chuẩn hoá về string để detect ping/pong (server có thể gửi dạng string, Buffer, hoặc ArrayBuffer)
+    let str = null;
+    if (!isBinary && typeof data === 'string') {
+      str = data;
+    } else if (Buffer.isBuffer(data)) {
+      const text = data.toString('utf8');
+      if (text === EIO_PING || text === EIO_PONG) str = text;
+    } else if (data instanceof ArrayBuffer) {
+      const text = Buffer.from(data).toString('utf8');
+      if (text === EIO_PING || text === EIO_PONG) str = text;
+    }
+
+    // Ping/pong ưu tiên tuyệt đối — reply ngay lập tức
+    if (str === EIO_PING) {
+      console.log('[newchat.js] ← server PING');
       ws.send(EIO_PONG);
+      console.log('[newchat.js] → client PONG sent');
       return;
     }
 
-    if (isBinary) {
+    // Binary msgpack frame
+    if (isBinary || (Buffer.isBuffer(data) && str === null)) {
       _handleBinaryFrame(data);
-    } else {
-      _handleTextFrame(data.toString());
+      return;
     }
+
+    // Text frame còn lại (EIO OPEN, v.v.)
+    _handleTextFrame(str ?? data.toString());
   });
 
+  // Heartbeat chủ động mỗi 20s — trước khi server timeout (25s)
+  const heartbeatTimer = setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(EIO_PING);
+      console.log('[newchat.js] → heartbeat PING sent');
+    }
+  }, 20000);
+
   ws.on('close', (code, reason) => {
+    clearInterval(heartbeatTimer);
     connected = false;
-    _clearPing();
     const reasonStr = reason?.toString() || '(no reason)';
     console.log(`[newchat.js] WebSocket đóng — code: ${code}, reason: ${reasonStr}`);
     emitter.emit('disconnect', code);
@@ -158,7 +181,6 @@ function _handleBinaryFrame(data) {
     retryCount = 0;
     console.log('[newchat.js] Socket.IO CONNECT ACK ✓  sid:', payload.sid);
     emitter.emit('connected', payload.sid);
-    _startPing();
     _subscribeChannels();
     return;
   }
@@ -210,28 +232,30 @@ function _subscribeChannels() {
 /**
  * Chuẩn hoá raw payload của event "channel:message" thành format thống nhất.
  *
- * Payload mẫu đã xác nhận từ F12:
- * {
- *   _id, channelId, user: { _id, fullName }, body, attachments,
- *   createdAt, isSystem, signId
- * }
+ * Payload thực tế từ server:
+ * { action: "create", message: { _id, channelId, body, attachments,
+ *   createdAt, isSystem, signId, user: { _id, fullName } } }
  */
 function _normalizeMessage(eventName, raw) {
   const stripHtml = (str) =>
     typeof str === 'string' ? str.replace(/<[^>]*>/g, '').trim() : str;
 
+  // Server bọc payload trong field "message"
+  const msg = raw.message || raw;
+
   return {
     type:        'message',
-    messageID:   raw._id        || null,
-    threadID:    raw.channelId  || null,
-    senderID:    raw.user?._id  || null,
-    senderName:  raw.user?.fullName || null,
-    body:        stripHtml(raw.body || ''),
-    bodyHtml:    raw.body       || null,
-    attachments: raw.attachments || [],
-    createdAt:   raw.createdAt  || null,
-    isSystem:    raw.isSystem   || false,
-    signId:      raw.signId     || null,   // dùng để dedup tin nhắn tự gửi
+    action:      raw.action     || null,   // "create" | "update" | "delete"
+    messageID:   msg._id        || null,
+    threadID:    msg.channelId  || null,
+    senderID:    msg.user?._id  || null,
+    senderName:  msg.user?.fullName || null,
+    body:        stripHtml(msg.body || ''),
+    bodyHtml:    msg.body       || null,
+    attachments: msg.attachments || [],
+    createdAt:   msg.createdAt  || null,
+    isSystem:    msg.isSystem   || false,
+    signId:      msg.signId     || null,   // dùng để dedup tin nhắn tự gửi
     _raw:        raw,
   };
 }
@@ -273,24 +297,6 @@ function sendMessage(threadId, content) {
   _emitEvent('send_message', { to: threadId, content, type: 'text' });
 }
 
-/**
- * Ping định kỳ theo pingInterval từ EIO OPEN (Engine.IO heartbeat).
- */
-function _startPing() {
-  _clearPing();
-  pingTimer = setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(EIO_PING);
-    }
-  }, pingIntervalMs);
-}
-
-function _clearPing() {
-  if (pingTimer) {
-    clearInterval(pingTimer);
-    pingTimer = null;
-  }
-}
 
 /**
  * Tự động kết nối lại với exponential backoff, tối đa MAX_RETRIES lần.
@@ -317,10 +323,9 @@ function _reconnect() {
  */
 function disconnect() {
   manualDisconnect = true;
-  _clearPing();
   connected = false;
   if (ws) {
-    ws.close();
+    ws.close(1000, 'manual disconnect');
     ws = null;
   }
 }
