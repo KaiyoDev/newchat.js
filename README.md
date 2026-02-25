@@ -97,7 +97,7 @@ const api = await loadAppState(JSON.parse(fs.readFileSync('appstate.json')));
 | `api.getUserInfo()` | Thông tin tài khoản đang đăng nhập |
 | `api.getMyProfile()` | Alias của `getUserInfo()` |
 
-Xem đầy đủ tại **[DOCS.md](DOCS.md)** hoặc **[docs site](https://kaiyodev.github.io/newchat.js)**.
+Xem đầy đủ tại **[docs site](https://kaiyodev.github.io/newchat.js)**.
 
 ---
 
@@ -152,7 +152,6 @@ WS    →  wss://ws.newchat.vn      (Socket.IO v4 + MessagePack binary)
   <img src="assets/npm-downloads.png" alt="npm downloads chart" width="700"/>
 </a>
 
-[📊 Xem thống kê chi tiết trên npmtrends](https://npmtrends.com/newchat.js)
 
 </div>
 
@@ -162,7 +161,7 @@ WS    →  wss://ws.newchat.vn      (Socket.IO v4 + MessagePack binary)
 
 ```bash
 # Cài dependencies
-npm install
+npm install newchat.js
 
 # Chạy test (ping/pong bot)
 node test.js
