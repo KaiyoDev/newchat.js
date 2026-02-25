@@ -1,31 +1,36 @@
-<p align="center">
-  <!-- Logo -->
-  <img src="https://raw.githubusercontent.com/KaiyoDev/newchat.js/main/docs-site/public/logo.svg" alt="newchat.js logo" width="84" height="84" style="margin-bottom: 0.5rem;" />
+<div align="center">
 
-  <!-- Project Name -->
-  <h1 style="margin-bottom: 0.25rem;">newchat.js</h1>
+  <!-- Logo — dark/light theme với drop shadow -->
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/KaiyoDev/newchat.js/main/docs-site/public/logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/KaiyoDev/newchat.js/main/docs-site/public/logo.svg">
+    <img
+      src="https://raw.githubusercontent.com/KaiyoDev/newchat.js/main/docs-site/public/logo.svg"
+      alt="newchat.js"
+      width="400"
+      style="filter: drop-shadow(0 4px 24px rgba(229,17,55,0.35)); margin-bottom: 8px;"
+    />
+  </picture>
 
-  <!-- Subtitle -->
-  <b>Unofficial Node.js API wrapper for <a href="https://newchat.vn" target="_blank">newchat.vn</a></b>
+  <h1>newchat.js</h1>
+  <p><b>Unofficial Node.js API wrapper for <a href="https://newchat.vn">newchat.vn</a></b></p>
 
-  <!-- Shields -->
-  <br>
-  <a href="https://www.npmjs.com/package/newchat.js">
-    <img src="https://img.shields.io/npm/v/newchat.js?color=crimson&style=flat-square" alt="npm version"/>
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="MIT license"/>
-  </a>
-  <a href="https://nodejs.org">
-    <img src="https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen?style=flat-square&logo=node.js" alt="Node.js >=18"/>
-  </a>
-  <a href="https://kaiyodev.github.io/newchat.js">
-    <img src="https://img.shields.io/badge/Docs-VitePress-646cff?style=flat-square" alt="Docs"/>
-  </a>
-  <a href="#contributors-">
-    <img src="https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square" alt="All Contributors"/>
-  </a>
-</p>
+  <p>
+    <a href="https://www.npmjs.com/package/newchat.js">
+      <img src="https://img.shields.io/npm/v/newchat.js?color=e51137&style=for-the-badge&logo=npm&logoColor=white" alt="npm version"/>
+    </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=for-the-badge" alt="MIT license"/>
+    </a>
+    <a href="https://nodejs.org">
+      <img src="https://img.shields.io/badge/Node.js-%3E%3D18-43853d?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js >=18"/>
+    </a>
+    <a href="https://kaiyodev.github.io/newchat.js">
+      <img src="https://img.shields.io/badge/Docs-VitePress-646cff?style=for-the-badge" alt="Docs"/>
+    </a>
+  </p>
+
+</div>
 
 ---
 
@@ -135,6 +140,24 @@ WS    →  wss://ws.newchat.vn      (Socket.IO v4 + MessagePack binary)
 
 ---
 
+## Thống kê Download
+
+<div align="center">
+
+[![npm downloads](https://img.shields.io/npm/dt/newchat.js?style=for-the-badge&logo=npm&color=e51137&label=Total%20Downloads)](https://www.npmjs.com/package/newchat.js)
+[![npm downloads/week](https://img.shields.io/npm/dw/newchat.js?style=for-the-badge&logo=npm&color=f97316&label=Weekly)](https://www.npmjs.com/package/newchat.js)
+[![npm downloads/month](https://img.shields.io/npm/dm/newchat.js?style=for-the-badge&logo=npm&color=eab308&label=Monthly)](https://www.npmjs.com/package/newchat.js)
+
+<a href="https://npm-stat.com/charts.html?package=newchat.js">
+  <img src="https://npm-stat.com/charts.html?package=newchat.js&from=2025-01-01" alt="npm download chart" width="700"/>
+</a>
+
+[Xem biểu đồ chi tiết trên npm-stat.com →](https://npm-stat.com/charts.html?package=newchat.js)
+
+</div>
+
+---
+
 ## Build & Phát triển
 
 ```bash
@@ -149,11 +172,6 @@ cd docs-site && npm run build
 ```
 
 ---
-
-## Contributors ✨
-
-<!-- ALL-CONTRIBUTORS-LIST:START -->
-<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 ## License
 
