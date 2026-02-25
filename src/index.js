@@ -27,6 +27,8 @@ function _decodeJwt(token) {
  */
 function _buildApi(token, userId) {
   const sendMessage      = require('./api/sendMessage')(token, httpClient);
+  const sendReply        = require('./api/sendReply')(token, httpClient);
+  const sendReaction     = require('./api/sendReaction')(token, httpClient);
   const listen           = require('./api/listen')(token, httpClient, userId);
   const getThreadList    = require('./api/getThreadList')(token, httpClient);
   const getUserInfo      = require('./api/getUserInfo')(token, httpClient);
@@ -45,6 +47,8 @@ function _buildApi(token, userId) {
 
   return {
     sendMessage,
+    sendReply,
+    sendReaction,
     sendAttachment,
     listen,
     getThreadList,
