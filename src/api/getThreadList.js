@@ -11,12 +11,13 @@
 module.exports = function (token, httpClient) {
   /**
    * Lấy danh sách các thread (cuộc trò chuyện) của người dùng.
+   * @param {number} [limit=20] - Số thread mỗi lần lấy
    * @returns {Promise<Array>}
    */
-  return async function getThreadList() {
+  return async function getThreadList(limit = 20) {
     try {
       const response = await httpClient.get('/users/@me/channels', {
-        params: { search: '', before: '' },
+        params: { search: '', before: '', limit },
       });
       return response.data?.data?.items
         || response.data?.data

@@ -10,12 +10,17 @@
  */
 module.exports = function (token, httpClient) {
   /**
-   * Lấy thông tin người dùng hiện tại đang đăng nhập.
+   * Lấy thông tin người dùng.
+   * - Nếu truyền `userId` → gọi GET /users/{userId}
+   * - Nếu không truyền → gọi GET /auth/me (user đang đăng nhập)
+   *
+   * @param {string} [userId] - ID người dùng cần lấy (optional)
    * @returns {Promise<Object>}
    */
-  return async function getUserInfo() {
+  return async function getUserInfo(userId) {
     try {
-      const response = await httpClient.get('/auth/me');
+      const url = userId ? `/users/${userId}` : '/auth/me';
+      const response = await httpClient.get(url);
       return response.data?.data || response.data;
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {

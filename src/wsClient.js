@@ -25,6 +25,11 @@ const EIO_MSG_BYTE = 0x04; // EIO packet type "message" — prefix bắt buộc 
 // Tên event tin nhắn đã xác nhận từ F12
 const MESSAGE_EVENTS = ['channel:message'];
 
+// Cache signId gần đây để tránh xử lý trùng (FIFO, tối đa 200 phần tử)
+const SIGN_ID_CACHE_LIMIT = 200;
+const _seenSignIds = new Set();
+const _signIdQueue = [];
+
 const emitter = new EventEmitter();
 
 let ws              = null;
@@ -234,6 +239,18 @@ function _dispatchEvent(eventName, eventData) {
       console.log('[newchat.js] Bỏ qua tin nhắn của chính bot (isSelf)');
       return;
     }
+    if (msg.signId) {
+      if (_seenSignIds.has(msg.signId)) {
+        console.log('[newchat.js] Bỏ qua tin nhắn trùng signId:', msg.signId);
+        return;
+      }
+      _seenSignIds.add(msg.signId);
+      _signIdQueue.push(msg.signId);
+      if (_signIdQueue.length > SIGN_ID_CACHE_LIMIT) {
+        const oldest = _signIdQueue.shift();
+        if (oldest) _seenSignIds.delete(oldest);
+      }
+    }
     emitter.emit('message', msg);
     return;
   }
@@ -244,6 +261,17 @@ function _dispatchEvent(eventName, eventData) {
   }
 
   emitter.emit('event', { type: eventName, data: eventData });
+}
+
+/**
+ * Helper dành cho test: inject payload "channel:message" trực tiếp vào pipeline
+ * để kiểm tra normalize + dedup signId.
+ * KHÔNG export qua main package — chỉ dùng nội bộ trong repo.
+ *
+ * @param {Object} raw - raw payload như server gửi
+ */
+function _testInjectChannelMessage(raw) {
+  _dispatchEvent('channel:message', raw);
 }
 
 /**
@@ -306,4 +334,4 @@ function disconnect() {
   }
 }
 
-module.exports = { connect, disconnect, emitter };
+module.exports = { connect, disconnect, emitter, _testInjectChannelMessage };
