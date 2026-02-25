@@ -153,3 +153,4 @@ Desktop.ini
 # Local docs (not committed)
 DOCS.md
 /tests/
+.npmrc

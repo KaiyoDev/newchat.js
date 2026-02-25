@@ -20,7 +20,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API Reference', link: '/api/login' },
       {
-        text: 'v1.0.4',
+        text: 'v1.0.5',
         items: [
           { text: 'Changelog', link: 'https://github.com/KaiyoDev/newchat.js/releases' },
           { text: 'npm', link: 'https://www.npmjs.com/package/newchat.js' },

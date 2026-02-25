@@ -1,12 +1,25 @@
-# getUserInfo() / getMyProfile()
+# getUserInfo(userID?) / getMyProfile()
 
-## getUserInfo()
+## getUserInfo(userID?)
 
-Lấy thông tin tài khoản đang đăng nhập.
+Lấy thông tin user:
+
+- Nếu **không truyền** `userID` → trả về info tài khoản đang đăng nhập (bot hiện tại).
+- Nếu **truyền** `userID` → trả về info user tương ứng.
 
 ```js
-const user = await api.getUserInfo();
+// Không tham số → info bot hiện tại
+const me = await api.getUserInfo();
+
+// Truyền userID → info user bất kỳ
+const other = await api.getUserInfo('abc123');
 ```
+
+### Parameters
+
+| Tên | Kiểu | Bắt buộc | Mô tả |
+|-----|------|----------|-------|
+| `userID` | `string` | ✗ | ID user cần lấy info. Nếu bỏ trống → dùng user hiện đăng nhập |
 
 ### Returns
 
@@ -42,6 +55,8 @@ const user = await api.getUserInfo();
 
 ### Examples
 
+#### Lấy info bot hiện tại
+
 ```js
 const me = await api.getUserInfo();
 
@@ -50,11 +65,28 @@ console.log('Email:', me.email);
 console.log('Username:', me.username);
 ```
 
+#### Lấy info user bất kỳ theo ID
+
+```js
+// ví dụ lấy user từ thread đầu tiên
+const threads = await api.getThreadList(1);
+const firstThread = threads[0];
+
+const targetUserId =
+  firstThread?.lastMessage?.user?._id ||
+  firstThread?.lastMessage?.senderId;
+
+if (targetUserId) {
+  const user = await api.getUserInfo(targetUserId);
+  console.log('Target user:', user.fullName || user.username, user._id);
+}
+```
+
 ---
 
 ## getMyProfile()
 
-Alias của `getUserInfo()`. Tên gọi thân thiện hơn khi chỉ cần lấy profile của bot đang chạy.
+Alias của `getUserInfo()` **không tham số**. Tên gọi thân thiện hơn khi chỉ cần lấy profile của bot đang chạy.
 
 ```js
 const profile = await api.getMyProfile();
@@ -93,4 +125,7 @@ api.listen((err, event) => {
 
 ## Kỹ thuật
 
-Endpoint: `GET https://api.newchat.vn/auth/me`
+Endpoint:
+
+- `GET https://api.newchat.vn/auth/me` — khi **không truyền** `userID`
+- `GET https://api.newchat.vn/users/{userID}` — khi **truyền** `userID`

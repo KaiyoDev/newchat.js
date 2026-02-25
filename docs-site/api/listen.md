@@ -1,7 +1,8 @@
 # listen()
 
 Kết nối WebSocket và lắng nghe events realtime (Socket.IO v4 + MessagePack binary).  
-Tin nhắn của chính bot (`isSelf: true`) được **tự động lọc bỏ** trong nội bộ.
+Tin nhắn của chính bot (`isSelf: true`) được **tự động lọc bỏ** trong nội bộ.  
+Các tin nhắn trùng `signId` cũng được library **tự động dedup**, bot không cần tự xử lý trùng nữa.
 
 ```js
 const { stopListening } = await api.listen(callback);

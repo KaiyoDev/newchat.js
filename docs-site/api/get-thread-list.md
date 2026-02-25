@@ -1,10 +1,20 @@
-# getThreadList()
+# getThreadList(limit?)
 
 Lấy danh sách tất cả các cuộc trò chuyện (channels/threads) của tài khoản.
 
 ```js
+// default: limit = 20
 const threads = await api.getThreadList();
+
+// truyền limit tuỳ ý, ví dụ 50
+const threads50 = await api.getThreadList(50);
 ```
+
+## Parameters
+
+| Tên | Kiểu | Bắt buộc | Mặc định | Mô tả |
+|-----|------|----------|----------|-------|
+| `limit` | `number` | ✗ | `20` | Số thread tối đa mỗi lần lấy |
 
 ## Returns
 
@@ -39,7 +49,7 @@ const threads = await api.getThreadList();
 ### Lấy danh sách và in ra
 
 ```js
-const threads = await api.getThreadList();
+const threads = await api.getThreadList(50); // lấy tối đa 50 threads
 
 console.log(`Bạn có ${threads.length} cuộc trò chuyện:`);
 threads.forEach(t => {
@@ -81,4 +91,4 @@ await Promise.all(unread.map(t => api.markAsRead(t._id)));
 
 ## Kỹ thuật
 
-Endpoint: `GET https://api.newchat.vn/users/@me/channels?search&before`
+Endpoint: `GET https://api.newchat.vn/users/@me/channels?search&before&limit`
