@@ -144,15 +144,15 @@ WS    →  wss://ws.newchat.vn      (Socket.IO v4 + MessagePack binary)
 
 <div align="center">
 
-[![npm downloads](https://img.shields.io/npm/dt/newchat.js?style=for-the-badge&logo=npm&color=e51137&label=Total%20Downloads)](https://www.npmjs.com/package/newchat.js)
-[![npm downloads/week](https://img.shields.io/npm/dw/newchat.js?style=for-the-badge&logo=npm&color=f97316&label=Weekly)](https://www.npmjs.com/package/newchat.js)
-[![npm downloads/month](https://img.shields.io/npm/dm/newchat.js?style=for-the-badge&logo=npm&color=eab308&label=Monthly)](https://www.npmjs.com/package/newchat.js)
+[![npm downloads](https://img.shields.io/npm/dt/newchat.js?label=Total%20Downloads&logo=npm&color=red)](https://www.npmjs.com/package/newchat.js)
+[![npm weekly](https://img.shields.io/npm/dw/newchat.js?label=Weekly&logo=npm&color=orange)](https://www.npmjs.com/package/newchat.js)
+[![npm monthly](https://img.shields.io/npm/dm/newchat.js?label=Monthly&logo=npm&color=yellow)](https://www.npmjs.com/package/newchat.js)
 
-<a href="https://npm-stat.com/charts.html?package=newchat.js">
-  <img src="https://npm-stat.com/charts.html?package=newchat.js&from=2025-01-01" alt="npm download chart" width="700"/>
+<a href="https://npmtrends.com/newchat.js">
+  <img src="assets/npm-downloads.png" alt="npm downloads chart" width="700"/>
 </a>
 
-[Xem biểu đồ chi tiết trên npm-stat.com →](https://npm-stat.com/charts.html?package=newchat.js)
+[📊 Xem thống kê chi tiết trên npmtrends](https://npmtrends.com/newchat.js)
 
 </div>
 
