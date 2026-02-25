@@ -20,7 +20,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API Reference', link: '/api/login' },
       {
-        text: 'v1.0.5',
+        text: 'v1.1.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/KaiyoDev/newchat.js/releases' },
           { text: 'npm', link: 'https://www.npmjs.com/package/newchat.js' },
@@ -43,6 +43,8 @@ export default defineConfig({
           { text: 'listen()', link: '/api/listen' },
           { text: 'sendMessage()', link: '/api/send-message' },
           { text: 'sendAttachment()', link: '/api/send-attachment' },
+          { text: 'sendReply()', link: '/api/send-reply' },
+          { text: 'sendReaction()', link: '/api/send-reaction' },
           { text: 'markAsRead()', link: '/api/mark-as-read' },
           { text: 'getThreadList()', link: '/api/get-thread-list' },
           { text: 'getThreadHistory()', link: '/api/get-thread-history' },

@@ -36,6 +36,10 @@ features:
   - icon: 📎
     title: Gửi file & ảnh
     details: Hỗ trợ gửi attachment với caption. Stream file trực tiếp, không cần load vào RAM.
+
+  - icon: 💬
+    title: Reply & Reactions
+    details: Reply thẳng vào từng message và thả emoji reaction như 👍 ❤️ 😂.
 ---
 
 <div style="text-align:center; margin-top: 2rem; color: var(--vp-c-text-2); font-size: 0.85rem;">

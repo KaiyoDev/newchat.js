@@ -1,4 +1,4 @@
-# Getting Started
+# Getting Started (v1.1.0)
 
 ## Echo Bot trong 5 phút
 
@@ -55,7 +55,9 @@ async function start() {
     console.log(`[${threadID}] ${senderName}: ${body}`);
 
     if (body === '/ping') {
-      api.sendMessage(threadID, 'pong 🏓').catch(console.error);
+      // Reply trực tiếp vào message gốc + thả reaction
+      api.sendReply(threadID, event.data.messageID, 'pong 🏓').catch(console.error);
+      api.sendReaction(threadID, event.data.messageID, '👍').catch(console.error);
     } else {
       api.sendMessage(threadID, `Echo: ${body}`).catch(console.error);
     }
@@ -138,6 +140,12 @@ await api.sendAttachment(threadID, './image.png', 'Caption ở đây');
 
 // File không có caption
 await api.sendAttachment(threadID, './document.pdf');
+
+// Reply vào một tin nhắn cụ thể
+await api.sendReply(threadID, messageID, 'Đây là reply!');
+
+// Thả reaction emoji
+await api.sendReaction(threadID, messageID, '❤️');
 ```
 
 ---
