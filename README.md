@@ -25,7 +25,7 @@
     <a href="https://nodejs.org">
       <img src="https://img.shields.io/badge/Node.js-%3E%3D18-43853d?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js >=18"/>
     </a>
-    <a href="https://kaiyodev.github.io/newchat.js">
+    <a href="https://newchat.eu.cc">
       <img src="https://img.shields.io/badge/Docs-VitePress-646cff?style=for-the-badge" alt="Docs"/>
     </a>
   </p>
@@ -97,7 +97,7 @@ const api = await loadAppState(JSON.parse(fs.readFileSync('appstate.json')));
 | `api.getUserInfo()` | Thông tin tài khoản đang đăng nhập |
 | `api.getMyProfile()` | Alias của `getUserInfo()` |
 
-Xem đầy đủ tại **[docs site](https://kaiyodev.github.io/newchat.js)**.
+Xem đầy đủ tại **[docs site](https://newchat.eu.cc)**.
 
 ---
 
