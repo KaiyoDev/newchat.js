@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  base: '/newchat.js/',
+  base: '/',
   title: 'newchat.js',
   description: 'Unofficial NewChat API for Node.js',
   lang: 'vi',
